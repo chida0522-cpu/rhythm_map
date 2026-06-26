@@ -1,0 +1,17 @@
+{
+  "name": "리듬맵 — 타악 교육 영업·확장 지도",
+  "short_name": "리듬맵",
+  "description": "충남·전북·전남 타악 교육 영업 현황과 강사 네트워크 확장을 지도로 관리합니다.",
+  "lang": "ko",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f5f1e8",
+  "theme_color": "#1a1714",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
