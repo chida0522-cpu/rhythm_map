@@ -13,37 +13,80 @@
 <meta name="apple-mobile-web-app-title" content="리듬맵">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+import { getAuth, GoogleAuthProvider, signInWithRedirect, getRedirectResult, onAuthStateChanged, signOut }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js';
+import { getFirestore, doc, setDoc, getDoc, onSnapshot, serverTimestamp }
+  from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+const firebaseConfig = {
+  apiKey:            "AIzaSyBIo7J6xBXwRghE6nogl3125vyEXrnJwJU",
+  authDomain:        "chida-class.firebaseapp.com",
+  projectId:         "chida-class",
+  storageBucket:     "chida-class.firebasestorage.app",
+  messagingSenderId: "866336334770",
+  appId:             "1:866336334770:web:4d24e05bbaa3f21837faab"
+};
+
+const app  = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db   = getFirestore(app);
+
+window._fb = { auth, db, GoogleAuthProvider, signInWithRedirect,
+               getRedirectResult, onAuthStateChanged, signOut,
+               doc, setDoc, getDoc, onSnapshot, serverTimestamp };
+
+document.addEventListener('DOMContentLoaded', () => window._appInit && window._appInit());
+</script>
+
 <style>
   :root{
-    --ink:#1a1714;        /* 거의 검은 잉크 */
-    --paper:#f5f1e8;      /* 따뜻한 종이 */
+    --ink:#1a1714;
+    --paper:#f5f1e8;
     --paper-2:#ebe5d6;
     --line:#d8cfba;
-    /* 영업 단계 색 — 두드림의 강도가 커지듯 */
-    --s-lead:#9aa3ad;     /* 잠재 (회색, 아직 미접촉) */
-    --s-contact:#e0a73d;  /* 접촉 (호박색) */
-    --s-nego:#d4622a;     /* 협의 (테라코타) */
-    --s-deal:#2f7d54;     /* 계약 (깊은 초록) */
-    --s-perf:#6b4ea8;     /* 공연공급 (보라) */
+    --s-lead:#9aa3ad;
+    --s-contact:#e0a73d;
+    --s-nego:#d4622a;
+    --s-deal:#2f7d54;
+    --s-perf:#6b4ea8;
     --accent:#d4622a;
+    --lime:#6BBF12;
     --shadow:0 1px 0 rgba(0,0,0,.04), 0 8px 24px rgba(40,30,20,.10);
     --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
     --sans:"Pretendard","Apple SD Gothic Neo",-apple-system,"Segoe UI",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%}
-  body{
-    font-family:var(--sans);background:var(--paper);color:var(--ink);
-    -webkit-font-smoothing:antialiased;overflow:hidden;
-  }
+  body{font-family:var(--sans);background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased;overflow:hidden}
   .app{display:grid;grid-template-columns:340px 1fr;grid-template-rows:64px 1fr;height:100vh}
 
-  /* ── 헤더 ── */
-  header{
-    grid-column:1/3;display:flex;align-items:center;gap:18px;
-    padding:0 22px;background:var(--ink);color:var(--paper);
-    border-bottom:3px solid var(--accent);
-  }
+  /* 로그인 화면 */
+  #loginScreen{position:fixed;inset:0;z-index:2000;background:var(--ink);display:flex;align-items:center;justify-content:center;flex-direction:column;gap:0}
+  #loginScreen.hide{display:none}
+  .login-logo{font-size:48px;margin-bottom:16px}
+  .login-title{font-size:26px;font-weight:800;color:var(--paper);letter-spacing:-.03em;margin-bottom:6px}
+  .login-sub{font-size:13px;color:rgba(245,241,232,.6);margin-bottom:40px;text-align:center;line-height:1.6}
+  .google-btn{display:flex;align-items:center;gap:12px;background:var(--paper);border:none;
+    border-radius:12px;padding:14px 24px;font-size:15px;font-weight:700;color:var(--ink);cursor:pointer;
+    box-shadow:0 4px 16px rgba(0,0,0,.3);transition:transform .1s}
+  .google-btn:active{transform:scale(.97)}
+  .google-icon{width:22px;height:22px}
+
+  /* 동기화 바 */
+  #syncBar{display:none;grid-column:1/3;background:rgba(107,191,18,.15);border-bottom:1px solid rgba(107,191,18,.3);
+    padding:5px 16px;font-size:12px;font-weight:600;color:#3A6B09;align-items:center;gap:6px;z-index:10}
+  #syncBar.show{display:flex}
+  #syncBar.offline{background:rgba(224,167,61,.15);border-bottom-color:rgba(224,167,61,.3);color:#7A5200}
+  .sync-dot{width:7px;height:7px;border-radius:50%;background:currentColor;animation:sdot 1.5s infinite}
+  @keyframes sdot{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* 헤더 */
+  header{grid-column:1/3;display:flex;align-items:center;gap:18px;
+    padding:0 22px;background:var(--ink);color:var(--paper);border-bottom:3px solid var(--accent)}
   .brand{display:flex;align-items:baseline;gap:10px}
   .brand b{font-size:21px;font-weight:800;letter-spacing:-.5px}
   .brand .beat{display:inline-flex;gap:3px;align-items:flex-end;height:20px}
@@ -51,36 +94,28 @@
   .brand .beat i:nth-child(2){animation-delay:.18s;background:var(--s-contact)}
   .brand .beat i:nth-child(3){animation-delay:.36s;background:var(--s-deal)}
   @keyframes pulse{0%,100%{height:6px}50%{height:20px}}
-  @media (prefers-reduced-motion:reduce){.brand .beat i{animation:none;height:14px}}
   .brand small{font-family:var(--mono);font-size:11px;opacity:.6;letter-spacing:.5px}
   header .spacer{flex:1}
-  header button{
-    font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;
+  header button{font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer;
     background:transparent;color:var(--paper);border:1px solid rgba(245,241,232,.35);
-    padding:8px 13px;border-radius:7px;transition:.15s;
-  }
+    padding:8px 13px;border-radius:7px;transition:.15s}
   header button:hover{background:rgba(245,241,232,.12)}
   header button.primary{background:var(--accent);border-color:var(--accent)}
-  header button.primary:hover{filter:brightness(1.08)}
+  header button.chida{background:var(--lime);border-color:var(--lime);color:#fff;font-weight:700}
+  header button.chida:hover{filter:brightness(1.08)}
   .netstatus{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-family:var(--mono);
     color:var(--paper);opacity:.75;padding:5px 10px;border-radius:20px;border:1px solid rgba(245,241,232,.25)}
   .netstatus::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--s-deal)}
-  .netstatus.off{opacity:.95;border-color:rgba(224,167,61,.5)}
   .netstatus.off::before{background:var(--s-contact)}
+  .user-chip{display:flex;align-items:center;gap:8px;font-size:12px;color:rgba(245,241,232,.7);cursor:pointer}
+  .user-chip img{width:28px;height:28px;border-radius:50%;object-fit:cover}
 
-  /* ── 사이드바 ── */
-  aside{
-    background:var(--paper-2);border-right:1px solid var(--line);
-    overflow-y:auto;padding:18px 16px 60px;
-  }
+  /* 사이드바 */
+  aside{background:var(--paper-2);border-right:1px solid var(--line);overflow-y:auto;padding:18px 16px 60px}
   .panel{margin-bottom:22px}
-  .panel h3{
-    font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:1.2px;
-    color:#8a7d66;margin-bottom:10px;display:flex;align-items:center;gap:8px;
-  }
+  .panel h3{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:1.2px;
+    color:#8a7d66;margin-bottom:10px;display:flex;align-items:center;gap:8px}
   .panel h3::after{content:"";flex:1;height:1px;background:var(--line)}
-
-  /* KPI 침투율 */
   .pen{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:14px;box-shadow:var(--shadow)}
   .pen .big{font-size:34px;font-weight:800;letter-spacing:-1px;line-height:1}
   .pen .big span{font-size:16px;color:#8a7d66;font-weight:600}
@@ -90,8 +125,6 @@
   .penlegend{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px;font-size:10.5px;color:#6b6354}
   .penlegend span{display:inline-flex;align-items:center;gap:4px}
   .penlegend b{width:9px;height:9px;border-radius:2px;display:inline-block}
-
-  /* 지역 토글 */
   .region-row,.type-row,.stage-row{display:flex;align-items:center;justify-content:space-between;
     padding:7px 9px;border-radius:7px;cursor:pointer;font-size:13px;transition:.12s}
   .region-row:hover,.type-row:hover,.stage-row:hover{background:var(--paper)}
@@ -103,8 +136,6 @@
     display:grid;place-items:center;font-weight:700}
   .rowlabel{display:flex;align-items:center;flex:1}
   .dot{width:10px;height:10px;border-radius:50%;margin-right:8px;flex:0 0 auto}
-
-  /* 다음 목표 */
   .goal{background:var(--paper);border:1px dashed var(--accent);border-radius:10px;padding:13px}
   .goal textarea{width:100%;border:none;background:transparent;font-family:var(--sans);
     font-size:13px;color:var(--ink);resize:vertical;min-height:48px;line-height:1.5}
@@ -115,32 +146,29 @@
   .goal label{font-size:11px;color:#8a7d66}
   .goalprog{font-family:var(--mono);font-size:12px;color:var(--s-deal);font-weight:700}
 
-  /* ── 지도 ── */
+  /* 지도 */
   main{position:relative}
   #map{position:absolute;inset:0;background:var(--paper-2)}
-  .leaflet-container{background:#dfe6e3;font-family:var(--sans)}
   .maptools{position:absolute;top:14px;right:14px;z-index:500;display:flex;flex-direction:column;gap:8px}
   .maptools button{background:var(--paper);border:1px solid var(--line);border-radius:8px;
     padding:9px 12px;font-size:13px;font-weight:600;cursor:pointer;box-shadow:var(--shadow);font-family:var(--sans);color:var(--ink)}
   .maptools button:hover{background:#fff}
+  .maptools button.chida-btn{background:#EDF7E0;border-color:#6BBF12;color:#3A6B09}
+  .maptools button.chida-btn:hover{background:#d8f0c0}
 
   /* 마커 */
-  /* 마커 — 색=영업단계, 모양+글자=기관유형 */
-  .mk{display:grid;place-items:center;border:2px solid #fff;color:#fff;font-weight:800;
-    box-shadow:0 2px 5px rgba(0,0,0,.35);line-height:1}
+  .mk{display:grid;place-items:center;border:2px solid #fff;color:#fff;font-weight:800;box-shadow:0 2px 5px rgba(0,0,0,.35);line-height:1}
   .mk-circle{border-radius:50%}
   .mk-square{border-radius:4px}
   .mk-diamond{border-radius:5px;transform:rotate(45deg)}
   .mk-diamond span{transform:rotate(-45deg)}
   .mk.big{box-shadow:0 3px 8px rgba(0,0,0,.4)}
-  /* 사이드바 유형 범례 표식 */
   .legendmk{width:18px;height:18px;flex:0 0 auto;margin-right:8px;display:grid;place-items:center;
-    background:#8a7d66;color:#fff;font-size:10px;font-weight:800;border:1.5px solid #fff;
-    box-shadow:0 1px 2px rgba(0,0,0,.2)}
+    background:#8a7d66;color:#fff;font-size:10px;font-weight:800;border:1.5px solid #fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
   .legendmk.mk-diamond{transform:rotate(45deg)}
   .legendmk.mk-diamond span{transform:rotate(-45deg);display:block}
 
-  /* 팝업 / 기관 카드 */
+  /* 팝업 */
   .leaflet-popup-content-wrapper{border-radius:12px;box-shadow:var(--shadow)}
   .leaflet-popup-content{margin:14px 16px;font-family:var(--sans)}
   .iocard b{font-size:15px}
@@ -153,12 +181,15 @@
   .iocard textarea{width:100%;font-size:12px;border:1px solid var(--line);border-radius:6px;
     padding:6px;font-family:var(--sans);resize:vertical;min-height:38px;margin-top:4px}
   .iocard .perf{display:flex;align-items:center;gap:7px;margin-top:9px;font-size:12px;cursor:pointer}
+  /* 치다 연동 버튼 */
+  .send-chida{width:100%;margin-top:10px;padding:8px;background:#EDF7E0;border:1.5px solid #6BBF12;
+    border-radius:8px;font-size:12px;font-weight:700;color:#3A6B09;cursor:pointer;font-family:var(--sans);
+    display:flex;align-items:center;justify-content:center;gap:6px;transition:background .12s}
+  .send-chida:hover{background:#d8f0c0}
+  .send-chida.sent{background:#d8f0c0;color:#27500A;cursor:default}
 
-  /* 빈 상태 / 안내 */
   .hint{font-size:12px;line-height:1.6;color:#6b6354;background:var(--paper);
     border:1px solid var(--line);border-radius:9px;padding:12px}
-  .hint b{color:var(--ink)}
-  .hint a{color:var(--accent);font-weight:600}
   .assignsel{width:100%;padding:7px;border:1px solid var(--line);border-radius:6px;
     font-family:var(--sans);font-size:12px;background:var(--paper);margin-top:4px}
 
@@ -172,30 +203,23 @@
     padding:18px 22px;border-bottom:3px solid var(--accent)}
   .modal .box header b{font-size:17px}
   .modal .body{padding:22px}
-  .modal .body h4{font-size:13px;margin:16px 0 7px;font-family:var(--mono);
-    text-transform:uppercase;letter-spacing:.8px;color:#8a7d66}
+  .modal .body h4{font-size:13px;margin:16px 0 7px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.8px;color:#8a7d66}
   .modal .body h4:first-child{margin-top:0}
   .modal .body p,.modal .body li{font-size:13px;line-height:1.65;color:#4a4339}
   .modal .body ol{padding-left:20px}
-  .modal .body code{font-family:var(--mono);font-size:12px;background:var(--paper-2);
-    padding:2px 6px;border-radius:4px;color:var(--accent)}
+  .modal .body code{font-family:var(--mono);font-size:12px;background:var(--paper-2);padding:2px 6px;border-radius:4px;color:var(--accent)}
   .modal .body a{color:var(--accent);font-weight:600;word-break:break-all}
   .modal .body .step{display:flex;gap:12px;margin-bottom:14px}
-  .modal .body .step .n{font-family:var(--mono);font-weight:800;color:var(--accent);
-    font-size:15px;flex:0 0 auto;width:24px}
+  .modal .body .step .n{font-family:var(--mono);font-weight:800;color:var(--accent);font-size:15px;flex:0 0 auto;width:24px}
   .modal .close{margin:0 22px 22px;width:calc(100% - 44px);padding:11px;background:var(--ink);
     color:var(--paper);border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer}
   .field{margin-bottom:13px}
   .field label{display:block;font-size:12px;font-weight:600;margin-bottom:5px;color:#4a4339}
-  .field input,.field select{width:100%;padding:9px;border:1px solid var(--line);
-    border-radius:7px;font-family:var(--sans);font-size:13px;background:var(--paper-2)}
+  .field input,.field select{width:100%;padding:9px;border:1px solid var(--line);border-radius:7px;font-family:var(--sans);font-size:13px;background:var(--paper-2)}
   .row2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
-
-  /* 모달 버튼 영역 */
   .modalbtns{display:flex;gap:9px;justify-content:flex-end;padding:0 22px 20px}
   .modalbtns button{padding:10px 16px;border-radius:8px;font-size:13px;font-weight:600;
     cursor:pointer;font-family:var(--sans);border:1px solid var(--line);background:var(--paper-2);color:var(--ink)}
-  .modalbtns .ghost:hover{background:var(--paper)}
   .modalbtns .solid{background:var(--ink);color:var(--paper);border-color:var(--ink)}
   .modalbtns .solid.primary{background:var(--accent);border-color:var(--accent)}
   .modalbtns .solid:hover{filter:brightness(1.1)}
@@ -204,56 +228,42 @@
   .addrrow input{flex:1}
   .findbtn{flex:0 0 auto;padding:0 14px;border:1px solid var(--accent);background:var(--accent);
     color:#fff;border-radius:7px;font-size:12.5px;font-weight:600;cursor:pointer;font-family:var(--sans)}
-  .findbtn:hover{filter:brightness(1.08)}
   .findbtn:disabled{opacity:.55;cursor:wait}
   .toast{font-size:12.5px;font-weight:600;color:var(--s-deal);margin-top:10px;min-height:18px}
   .modal textarea{width:100%;font-family:var(--mono);font-size:12.5px;line-height:1.6;
     border:1px solid var(--line);border-radius:8px;padding:11px;background:var(--paper-2);resize:vertical}
-
-  /* 목록 */
   .search{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;
     font-family:var(--sans);font-size:13px;background:var(--paper-2);margin-bottom:14px}
   .listwrap{max-height:48vh;overflow-y:auto;border:1px solid var(--line);border-radius:9px}
   .litem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px}
   .litem:last-child{border-bottom:none}
-  .litem .badge{width:22px;height:22px;flex:0 0 auto;display:grid;place-items:center;
-    color:#fff;font-size:10px;font-weight:800;border-radius:50%}
+  .litem .badge{width:22px;height:22px;flex:0 0 auto;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;border-radius:50%}
   .litem .badge.sq{border-radius:4px}
   .litem .badge.dm{border-radius:4px;transform:rotate(45deg)}
   .litem .badge.dm span{transform:rotate(-45deg)}
   .litem .nm{flex:1;font-weight:600}
-  .litem .ltype{flex:0 0 auto;font-family:var(--sans);font-size:11.5px;padding:4px 6px;
-    border:1px solid var(--line);border-radius:6px;background:var(--paper-2);color:var(--ink)}
+  .litem .ltype{flex:0 0 auto;font-family:var(--sans);font-size:11.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--paper-2);color:var(--ink)}
   .litem .meta{font-family:var(--mono);font-size:11px;color:#8a7d66}
   .litem .act{display:flex;gap:6px}
   .litem .act button{border:none;background:transparent;cursor:pointer;font-size:15px;padding:3px;border-radius:5px}
   .litem .act button:hover{background:var(--paper)}
   .listempty{padding:30px;text-align:center;color:#8a7d66;font-size:13px}
-
-  /* 유형 관리 */
   .manage-link{margin-top:8px;width:100%;background:transparent;border:none;color:var(--accent);
     font-size:12px;font-weight:600;cursor:pointer;text-align:left;padding:4px 9px;font-family:var(--sans)}
-  .manage-link:hover{text-decoration:underline}
   .tmrow{display:flex;align-items:center;gap:9px;padding:9px 0;border-bottom:1px solid var(--line)}
-  .tmrow .badge{width:24px;height:24px;flex:0 0 auto;display:grid;place-items:center;color:#fff;
-    font-size:10px;font-weight:800;background:#8a7d66;border-radius:50%}
+  .tmrow .badge{width:24px;height:24px;flex:0 0 auto;display:grid;place-items:center;color:#fff;font-size:10px;font-weight:800;background:#8a7d66;border-radius:50%}
   .tmrow .badge.sq{border-radius:4px}
   .tmrow .badge.dm{border-radius:4px;transform:rotate(45deg)}
   .tmrow .badge.dm span{transform:rotate(-45deg)}
-  .tmrow input.tname{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:6px;
-    font-family:var(--sans);font-size:13px;background:var(--paper-2)}
+  .tmrow input.tname{flex:1;padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-family:var(--sans);font-size:13px;background:var(--paper-2)}
   .tmrow .tcnt{font-family:var(--mono);font-size:11px;color:#8a7d66;flex:0 0 auto}
   .tmrow .tdel{border:none;background:transparent;cursor:pointer;font-size:15px;padding:4px;border-radius:5px}
-  .tmrow .tdel:hover{background:var(--paper)}
   .addtype{display:flex;gap:8px;margin-top:16px}
-  .addtype input{flex:1;padding:9px;border:1px solid var(--line);border-radius:7px;
-    font-family:var(--sans);font-size:13px;background:var(--paper-2)}
-  .addtype select{padding:9px;border:1px solid var(--line);border-radius:7px;
-    font-family:var(--sans);font-size:13px;background:var(--paper-2)}
-  .addtype .solid{padding:0 16px;background:var(--ink);color:var(--paper);border:none;
-    border-radius:7px;font-weight:600;cursor:pointer;font-size:13px}
+  .addtype input{flex:1;padding:9px;border:1px solid var(--line);border-radius:7px;font-family:var(--sans);font-size:13px;background:var(--paper-2)}
+  .addtype select{padding:9px;border:1px solid var(--line);border-radius:7px;font-family:var(--sans);font-size:13px;background:var(--paper-2)}
+  .addtype .solid{padding:0 16px;background:var(--ink);color:var(--paper);border:none;border-radius:7px;font-weight:600;cursor:pointer;font-size:13px}
 
-  @media (max-width:820px){
+  @media(max-width:820px){
     .app{grid-template-columns:1fr;grid-template-rows:58px 40vh 1fr}
     aside{grid-row:3;border-right:none;border-top:1px solid var(--line)}
     main{grid-row:2}
@@ -262,7 +272,27 @@
 </style>
 </head>
 <body>
+
+<!-- 로그인 화면 -->
+<div id="loginScreen">
+  <div class="login-logo">🗺️</div>
+  <div class="login-title">리듬맵</div>
+  <div class="login-sub">타악 교육 영업·확장 지도<br>기기 간 자동 동기화</div>
+  <button class="google-btn" onclick="signInGoogle()">
+    <svg class="google-icon" viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+    </svg>
+    Google로 로그인
+  </button>
+</div>
+
 <div class="app">
+  <!-- 동기화 바 -->
+  <div id="syncBar"></div>
+
   <header>
     <div class="brand">
       <span class="beat"><i></i><i></i><i></i></span>
@@ -270,11 +300,11 @@
       <small>RHYTHM·MAP / 타악 교육 확장 지도</small>
     </div>
     <div class="spacer"></div>
-    <span id="netStatus" class="netstatus" title="네트워크 상태"></span>
+    <span id="netStatus" class="netstatus">온라인</span>
     <button onclick="openGuide()">＋ 잠재고객 채우기</button>
-    <button onclick="document.getElementById('imp').click()">불러오기</button>
-    <input id="imp" type="file" accept=".json" style="display:none" onchange="importData(event)">
-    <button class="primary" onclick="exportData()">저장하기</button>
+    <button onclick="openSaveModal()">저장하기</button>
+    <button class="chida" onclick="window.open('https://chida0522-cpu.github.io/chida-class','_blank')">🥁 치다 수업관리</button>
+    <div class="user-chip" id="userChip" onclick="confirmLogout()" title="클릭하면 로그아웃"></div>
   </header>
 
   <aside>
@@ -287,39 +317,25 @@
         <div class="penlegend" id="penLegend"></div>
       </div>
     </div>
-
     <div class="panel">
       <h3>다음 목표</h3>
       <div class="goal">
-        <textarea id="goalText" placeholder="예: 전북 지역아동센터 신규 계약 5곳, 김 강사 담당 배정" oninput="saveState()"></textarea>
+        <textarea id="goalText" placeholder="예: 전북 지역아동센터 신규 계약 5곳" oninput="debounceSave()"></textarea>
         <div class="meta">
           <label>목표 계약 수</label>
-          <input type="number" id="goalNum" min="0" value="40" oninput="renderGoal();saveState()">
+          <input type="number" id="goalNum" min="0" value="40" oninput="renderGoal();debounceSave()">
           <span class="goalprog" id="goalProg"></span>
         </div>
       </div>
     </div>
-
-    <div class="panel">
-      <h3>영업 단계</h3>
-      <div id="stageFilters"></div>
-    </div>
-
-    <div class="panel">
-      <h3>지역</h3>
-      <div id="regionFilters"></div>
-    </div>
-
+    <div class="panel"><h3>영업 단계</h3><div id="stageFilters"></div></div>
+    <div class="panel"><h3>지역</h3><div id="regionFilters"></div></div>
     <div class="panel">
       <h3>기관 유형</h3>
       <div id="typeFilters"></div>
       <button class="manage-link" onclick="openTypes()">유형 종류 관리 →</button>
     </div>
-
-    <div class="panel">
-      <h3>강사 배분</h3>
-      <div id="instructorList"></div>
-    </div>
+    <div class="panel"><h3>강사 배분</h3><div id="instructorList"></div></div>
   </aside>
 
   <main>
@@ -329,40 +345,35 @@
       <button onclick="openBulk()">≣ 한번에 입력</button>
       <button onclick="openList()">☰ 기관 목록</button>
       <button onclick="fitAll()">전체 보기</button>
+      <button class="chida-btn" onclick="sendDealsToChida()">🥁 계약기관 → 치다</button>
     </div>
   </main>
 </div>
 
-<!-- 수집 가이드 모달 -->
+<!-- 모달들 -->
 <div class="modal" id="guideModal">
-  <div class="box">
-    <header><b>잠재고객 데이터 자동 채우기</b></header>
+  <div class="box"><header><b>잠재고객 데이터 자동 채우기</b></header>
     <div class="body" id="guideBody"></div>
-    <button class="close" onclick="closeModal('guideModal')">닫았다</button>
-  </div>
+    <button class="close" onclick="closeModal('guideModal')">닫기</button></div>
 </div>
-
-<!-- 기관 추가 모달 -->
 <div class="modal" id="addModal">
-  <div class="box">
-    <header><b>기관 직접 추가</b></header>
+  <div class="box"><header><b>기관 직접 추가</b></header>
     <div class="body">
       <div class="field"><label>기관명</label><input id="f_name" placeholder="○○초등학교"></div>
       <div class="row2">
         <div class="field"><label>지역</label><select id="f_region"></select></div>
         <div class="field"><label>유형</label><select id="f_type"></select></div>
       </div>
-      <div class="field"><label>주소 (입력 후 ‘위치 찾기’를 누르면 좌표가 채워집니다)</label>
+      <div class="field"><label>주소</label>
         <div class="addrrow">
           <input id="f_addr" placeholder="예: 전주시 완산구 효자로 225">
           <button class="findbtn" onclick="geocodeForm()">위치 찾기</button>
         </div>
       </div>
       <div class="row2">
-        <div class="field"><label>위도 (lat)</label><input id="f_lat" placeholder="자동 입력"></div>
-        <div class="field"><label>경도 (lng)</label><input id="f_lng" placeholder="자동 입력"></div>
+        <div class="field"><label>위도</label><input id="f_lat" placeholder="자동 입력"></div>
+        <div class="field"><label>경도</label><input id="f_lng" placeholder="자동 입력"></div>
       </div>
-      <p style="font-size:11.5px;color:#8a7d66">주소를 못 찾거나 위치가 살짝 어긋나면, 추가한 뒤 지도에서 마커를 끌어 맞추면 됩니다.</p>
       <div id="addToast" class="toast"></div>
     </div>
     <div class="modalbtns">
@@ -372,29 +383,16 @@
     </div>
   </div>
 </div>
-
-<!-- 일괄 입력 모달 -->
 <div class="modal" id="bulkModal">
-  <div class="box">
-    <header><b>한 번에 여러 기관 입력</b></header>
+  <div class="box"><header><b>한 번에 여러 기관 입력</b></header>
     <div class="body">
       <div class="row2">
-        <div class="field"><label>이 묶음의 지역</label><select id="b_region"></select></div>
-        <div class="field"><label>이 묶음의 유형</label><select id="b_type"></select></div>
+        <div class="field"><label>지역</label><select id="b_region"></select></div>
+        <div class="field"><label>유형</label><select id="b_type"></select></div>
       </div>
-      <div class="field">
-        <label>기관 목록 — 한 줄에 하나씩</label>
-        <textarea id="b_list" rows="9" placeholder="전주삼천초등학교
-전주효문중학교
-익산남성여자고등학교
-
-· 이름만 적으면 위에서 고른 지역·유형으로 들어갑니다.
-· 주소까지 찾으려면:  이름 | 주소
-  예) 군산중앙초 | 군산시 대학로 123
-· 좌표를 이미 알면:  이름, 위도, 경도
-  예) 군산중앙초, 35.97, 126.71"></textarea>
+      <div class="field"><label>기관 목록 — 한 줄에 하나씩</label>
+        <textarea id="b_list" rows="9" placeholder="전주삼천초등학교&#10;전주효문중학교&#10;&#10;이름|주소 형식으로 주소도 입력 가능"></textarea>
       </div>
-      <p style="font-size:11.5px;color:#8a7d66">‘이름 | 주소’로 적으면 주소를 좌표로 찾아 정확히 찍습니다. 이름만 적은 곳은 지역 중심에 흩어 놓고, 지도에서 마커를 끌어 옮기면 됩니다.</p>
       <div id="bulkToast" class="toast"></div>
     </div>
     <div class="modalbtns">
@@ -403,30 +401,21 @@
     </div>
   </div>
 </div>
-
-<!-- 기관 목록·관리 모달 -->
 <div class="modal" id="listModal">
-  <div class="box wide">
-    <header><b>기관 목록 · 수정 · 삭제</b></header>
+  <div class="box wide"><header><b>기관 목록 · 수정 · 삭제</b></header>
     <div class="body">
       <input id="l_search" class="search" placeholder="기관명·지역·유형으로 검색" oninput="renderList()">
       <div class="listwrap" id="listWrap"></div>
     </div>
-    <div class="modalbtns">
-      <button class="ghost" onclick="closeModal('listModal')">닫기</button>
-    </div>
+    <div class="modalbtns"><button class="ghost" onclick="closeModal('listModal')">닫기</button></div>
   </div>
 </div>
-
-<!-- 유형 종류 관리 모달 -->
 <div class="modal" id="typeModal">
-  <div class="box">
-    <header><b>기관 유형 종류 관리</b></header>
+  <div class="box"><header><b>기관 유형 종류 관리</b></header>
     <div class="body">
-      <p style="font-size:12.5px;color:#6b6354;margin-bottom:14px">유형의 이름을 바꾸거나, 더 이상 안 쓰는 유형을 지우거나, 새 유형(예: 복지관, 평생학습관)을 추가할 수 있습니다. 이름을 바꾸면 그 유형으로 등록된 기관들도 함께 바뀝니다.</p>
       <div id="typeManageWrap"></div>
       <div class="addtype">
-        <input id="newType" placeholder="새 유형 이름 (예: 노인복지관)">
+        <input id="newType" placeholder="새 유형 이름">
         <select id="newTypeShape">
           <option value="circle">● 원형</option>
           <option value="square">■ 사각형</option>
@@ -436,62 +425,228 @@
       </div>
       <div id="typeToast" class="toast"></div>
     </div>
+    <div class="modalbtns"><button class="ghost" onclick="closeModal('typeModal')">닫기</button></div>
+  </div>
+</div>
+<div class="modal" id="saveModal">
+  <div class="box"><header><b>데이터 저장</b></header>
+    <div class="body">
+      <p style="font-size:14px;margin-bottom:16px">데이터는 클라우드에 자동 저장됩니다.<br>JSON 백업 파일도 내려받을 수 있어요.</p>
+      <button class="solid primary" onclick="exportData()" style="width:100%;padding:12px;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff;font-family:var(--sans)">📥 JSON 백업 파일 내보내기</button>
+      <div style="margin-top:12px">
+        <p style="font-size:13px;color:#6b6354;margin-bottom:8px">구버전 JSON 파일 가져오기:</p>
+        <button class="solid" onclick="document.getElementById('imp').click()" style="width:100%;padding:10px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:var(--ink);color:var(--paper);font-family:var(--sans)">📂 JSON 불러오기</button>
+        <input id="imp" type="file" accept=".json" style="display:none" onchange="importData(event)">
+      </div>
+    </div>
+    <div class="modalbtns"><button class="ghost" onclick="closeModal('saveModal')">닫기</button></div>
+  </div>
+</div>
+<!-- 치다 전송 확인 모달 -->
+<div class="modal" id="chidaModal">
+  <div class="box"><header><b>🥁 치다 수업관리로 보내기</b></header>
+    <div class="body">
+      <p style="font-size:14px;margin-bottom:12px">계약 단계 기관을 치다 수업관리에 등록합니다.</p>
+      <div id="chidaSendList" style="max-height:200px;overflow-y:auto;border:1px solid var(--line);border-radius:8px;margin-bottom:14px"></div>
+      <div id="chidaToast" class="toast"></div>
+    </div>
     <div class="modalbtns">
-      <button class="ghost" onclick="closeModal('typeModal')">닫기</button>
+      <button class="ghost" onclick="closeModal('chidaModal')">닫기</button>
+      <button class="solid primary" onclick="confirmSendToChida()" style="background:#6BBF12;border-color:#6BBF12">치다에 등록</button>
     </div>
   </div>
 </div>
 
 <script>
 /* ===== 상수 ===== */
-const STAGES = [
-  {id:'lead',    name:'잠재',     color:'var(--s-lead)',    raw:'#9aa3ad'},
-  {id:'contact', name:'접촉',     color:'var(--s-contact)', raw:'#e0a73d'},
-  {id:'nego',    name:'협의',     color:'var(--s-nego)',    raw:'#d4622a'},
-  {id:'deal',    name:'계약',     color:'var(--s-deal)',    raw:'#2f7d54'},
+const STAGES=[
+  {id:'lead',name:'잠재',color:'var(--s-lead)',raw:'#9aa3ad'},
+  {id:'contact',name:'접촉',color:'var(--s-contact)',raw:'#e0a73d'},
+  {id:'nego',name:'협의',color:'var(--s-nego)',raw:'#d4622a'},
+  {id:'deal',name:'계약',color:'var(--s-deal)',raw:'#2f7d54'},
 ];
-let TYPE_META = {
-  '초등학교':        {label:'초', shape:'circle'},
-  '중학교':          {label:'중', shape:'circle'},
-  '고등학교':        {label:'고', shape:'circle'},
-  '지역아동센터':    {label:'센', shape:'square'},
-  '특수교육지원센터':{label:'특', shape:'diamond'},
+let TYPE_META={
+  '초등학교':{label:'초',shape:'circle'},
+  '중학교':{label:'중',shape:'circle'},
+  '고등학교':{label:'고',shape:'circle'},
+  '지역아동센터':{label:'센',shape:'square'},
+  '특수교육지원센터':{label:'특',shape:'diamond'},
 };
-let TYPES = Object.keys(TYPE_META);
-function refreshTypes(){ TYPES = Object.keys(TYPE_META); }
-const REGIONS = {
-  '충남':{name:'충청남도', lat:36.52, lng:126.80},
-  '전북':{name:'전북특별자치도', lat:35.72, lng:127.15},
-  '전남':{name:'전라남도', lat:34.86, lng:126.99},
+let TYPES=Object.keys(TYPE_META);
+function refreshTypes(){TYPES=Object.keys(TYPE_META);}
+const REGIONS={
+  '충남':{name:'충청남도',lat:36.52,lng:126.80},
+  '전북':{name:'전북특별자치도',lat:35.72,lng:127.15},
+  '전남':{name:'전라남도',lat:34.86,lng:126.99},
 };
-const REGION_KEYS = Object.keys(REGIONS);
+const REGION_KEYS=Object.keys(REGIONS);
 
 /* ===== 상태 ===== */
-let institutions = [];           // {id,name,region,type,lat,lng,addr,stage,perf,note,instructor}
-let instructors = ['나'];
-let filters = {stage:new Set(STAGES.map(s=>s.id)), region:new Set(REGION_KEYS), type:new Set(TYPES)};
-let map, markerLayer;
+let institutions=[];
+let instructors=['나'];
+let filters={stage:new Set(STAGES.map(s=>s.id)),region:new Set(REGION_KEYS),type:new Set(TYPES)};
+let map,markerLayer;
+let curUser=null;
+let isOnline=navigator.onLine;
+let saveTimer=null;
+
+window.addEventListener('online',()=>{isOnline=true;updateNetStatus();updateSyncBar();});
+window.addEventListener('offline',()=>{isOnline=false;updateNetStatus();updateSyncBar();});
+
+/* ===== Firebase 초기화 ===== */
+window._appInit=async function(){
+  const {auth,onAuthStateChanged,getRedirectResult}=window._fb;
+  try{
+    const result=await getRedirectResult(auth);
+    if(result?.user){curUser=result.user;showApp();}
+  }catch(e){console.log(e);}
+  onAuthStateChanged(auth,user=>{
+    if(user){curUser=user;showApp();}
+    else{curUser=null;document.getElementById('loginScreen').classList.remove('hide');}
+  });
+};
+
+async function signInGoogle(){
+  const {auth,GoogleAuthProvider,signInWithRedirect}=window._fb;
+  try{await signInWithRedirect(auth,new GoogleAuthProvider());}
+  catch(e){alert('로그인 오류: '+e.message);}
+}
+async function confirmLogout(){
+  if(!confirm('로그아웃 할까요?'))return;
+  const {auth,signOut}=window._fb;
+  await signOut(auth);
+  document.getElementById('loginScreen').classList.remove('hide');
+}
+
+function showApp(){
+  document.getElementById('loginScreen').classList.add('hide');
+  // 유저 칩
+  const chip=document.getElementById('userChip');
+  chip.innerHTML=curUser.photoURL?`<img src="${curUser.photoURL}" alt="">`:'';
+  chip.innerHTML+=`<span style="font-size:12px;color:rgba(245,241,232,.7)">${curUser.displayName||curUser.email}</span>`;
+  init();
+  loadFromCloud();
+}
+
+/* ===== 클라우드 저장/로드 ===== */
+async function saveToCloud(){
+  if(!curUser)return;
+  const {db,doc,setDoc,serverTimestamp}=window._fb;
+  try{
+    await setDoc(doc(db,`rhythm_map/${curUser.uid}`),{
+      institutions,instructors,typeMeta:TYPE_META,
+      goalText:document.getElementById('goalText').value,
+      goalNum:document.getElementById('goalNum').value,
+      updatedAt:serverTimestamp()
+    });
+    updateSyncBar('saved');
+  }catch(e){console.error('저장 실패',e);}
+}
+async function loadFromCloud(){
+  if(!curUser)return;
+  const {db,doc,getDoc}=window._fb;
+  try{
+    const snap=await getDoc(doc(db,`rhythm_map/${curUser.uid}`));
+    if(snap.exists()){
+      const d=snap.data();
+      institutions=d.institutions||[];
+      instructors=d.instructors||['나'];
+      if(d.typeMeta&&Object.keys(d.typeMeta).length){
+        TYPE_META=d.typeMeta;refreshTypes();filters.type=new Set(TYPES);
+        buildTypeFilters();fillSelects();
+      }
+      if(d.goalText)document.getElementById('goalText').value=d.goalText;
+      if(d.goalNum)document.getElementById('goalNum').value=d.goalNum;
+      renderAll();
+      if(institutions.length>0)fitAll();
+      updateSyncBar('loaded');
+    }else{
+      seedExample();renderAll();
+    }
+  }catch(e){console.error('로드 실패',e);seedExample();renderAll();}
+}
+function debounceSave(){
+  clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>saveToCloud(),2000);
+}
+function updateSyncBar(state){
+  const bar=document.getElementById('syncBar');
+  if(!curUser){bar.classList.remove('show');return;}
+  if(!isOnline){bar.className='show offline';bar.innerHTML='<span class="sync-dot"></span>오프라인 — 연결 시 자동 저장';}
+  else if(state==='saved'){bar.className='show';bar.innerHTML='☁️ 저장됐어요';setTimeout(()=>bar.classList.remove('show'),2500);}
+  else if(state==='loaded'){bar.className='show';bar.innerHTML='☁️ 불러왔어요';setTimeout(()=>bar.classList.remove('show'),2000);}
+  else bar.classList.remove('show');
+}
+
+/* ===== 치다 앱 연동 ===== */
+// 리듬맵의 CT 타입과 치다 앱의 클래스 유형 매핑
+const TYPE_TO_CHIDA={
+  '초등학교':1,'중학교':5,'고등학교':5,
+  '지역아동센터':1,'특수교육지원센터':7,
+};
+const DAY_MAP={'충남':'월','전북':'화','전남':'수'};
+
+function sendDealsToChida(){
+  const deals=institutions.filter(io=>io.stage==='deal');
+  if(!deals.length){alert('계약 단계 기관이 없어요.');return;}
+  const list=document.getElementById('chidaSendList');
+  list.innerHTML=deals.map(io=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:13px">
+      <span style="font-size:18px">${TYPE_META[io.type]?.label||'?'}</span>
+      <div style="flex:1">
+        <div style="font-weight:600">${io.name}</div>
+        <div style="font-size:11px;color:#8a7d66">${REGIONS[io.region]?.name||io.region} · ${io.type}</div>
+      </div>
+      <span style="font-size:11px;background:#EDF7E0;color:#3A6B09;padding:3px 8px;border-radius:6px;font-weight:600">계약</span>
+    </div>`).join('');
+  document.getElementById('chidaToast').textContent='';
+  openModal('chidaModal');
+}
+
+async function confirmSendToChida(){
+  if(!curUser){alert('로그인이 필요해요.');return;}
+  const deals=institutions.filter(io=>io.stage==='deal');
+  const {db,collection,doc,setDoc,serverTimestamp}=window._fb;
+  const uid=curUser.uid;
+  let count=0;
+  for(const io of deals){
+    // 치다 앱의 insts 컬렉션에 추가 (이미 있으면 덮어쓰지 않도록 id 기반)
+    const chidaId='rm_'+io.id;
+    const chidaType=TYPE_TO_CHIDA[io.type]??5;
+    try{
+      const instRef=doc(db,`users/${uid}/insts`,chidaId);
+      await setDoc(instRef,{
+        id:chidaId,
+        name:io.name,
+        type:chidaType,
+        day:DAY_MAP[io.region]||'월',
+        time:'',
+        _from:'rhythm_map',
+        _ts:serverTimestamp()
+      },{merge:true});
+      count++;
+    }catch(e){console.error(e);}
+  }
+  const toast=document.getElementById('chidaToast');
+  toast.style.color='var(--s-deal)';
+  toast.textContent=`${count}개 기관을 치다 수업관리에 등록했어요! 치다 앱에서 확인하세요.`;
+  setTimeout(()=>closeModal('chidaModal'),2500);
+}
 
 /* ===== 초기화 ===== */
 function init(){
-  map = L.map('map',{zoomControl:true}).setView([35.6,127.0],8);
-  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    attribution:'&copy; OpenStreetMap', maxZoom:19
-  }).addTo(map);
-  markerLayer = L.layerGroup().addTo(map);
-
-  buildStageFilters(); buildRegionFilters(); buildTypeFilters();
-  fillSelects();
-  loadState();
-  if(institutions.length===0) seedExample();
-  renderAll();
+  if(map)return;
+  map=L.map('map',{zoomControl:true}).setView([35.6,127.0],8);
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap',maxZoom:19}).addTo(map);
+  markerLayer=L.layerGroup().addTo(map);
+  buildStageFilters();buildRegionFilters();buildTypeFilters();fillSelects();
 }
 
 /* ===== 필터 UI ===== */
 function buildStageFilters(){
-  const c = document.getElementById('stageFilters'); c.innerHTML='';
+  const c=document.getElementById('stageFilters');c.innerHTML='';
   STAGES.forEach(s=>{
-    const r=document.createElement('div'); r.className='stage-row';
+    const r=document.createElement('div');r.className='stage-row';
     r.onclick=()=>{toggle(filters.stage,s.id);renderAll()};
     r.innerHTML=`<div class="rowlabel"><span class="chk on" data-k="${s.id}"></span>
       <span class="dot" style="background:${s.color}"></span>${s.name}</div>
@@ -500,9 +655,9 @@ function buildStageFilters(){
   });
 }
 function buildRegionFilters(){
-  const c=document.getElementById('regionFilters'); c.innerHTML='';
+  const c=document.getElementById('regionFilters');c.innerHTML='';
   REGION_KEYS.forEach(k=>{
-    const r=document.createElement('div'); r.className='region-row';
+    const r=document.createElement('div');r.className='region-row';
     r.onclick=()=>{toggle(filters.region,k);renderAll()};
     r.innerHTML=`<div class="rowlabel"><span class="chk on" data-rk="${k}"></span>${REGIONS[k].name}</div>
       <span class="cnt" id="regcnt-${k}">0</span>`;
@@ -510,10 +665,10 @@ function buildRegionFilters(){
   });
 }
 function buildTypeFilters(){
-  const c=document.getElementById('typeFilters'); c.innerHTML='';
+  const c=document.getElementById('typeFilters');c.innerHTML='';
   TYPES.forEach(t=>{
     const m=TYPE_META[t];
-    const r=document.createElement('div'); r.className='type-row';
+    const r=document.createElement('div');r.className='type-row';
     r.onclick=()=>{toggle(filters.type,t);renderAll()};
     r.innerHTML=`<div class="rowlabel"><span class="chk on" data-tk="${t}"></span>
       <span class="legendmk mk-${m.shape}"><span>${m.label}</span></span>${t}</div>
@@ -521,15 +676,12 @@ function buildTypeFilters(){
     c.appendChild(r);
   });
 }
-function toggle(set,key){ set.has(key)?set.delete(key):set.add(key); }
-
+function toggle(set,key){set.has(key)?set.delete(key):set.add(key);}
 function refreshChecks(){
   document.querySelectorAll('[data-k]').forEach(e=>e.classList.toggle('on',filters.stage.has(e.dataset.k)));
   document.querySelectorAll('[data-rk]').forEach(e=>e.classList.toggle('on',filters.region.has(e.dataset.rk)));
   document.querySelectorAll('[data-tk]').forEach(e=>e.classList.toggle('on',filters.type.has(e.dataset.tk)));
 }
-
-/* ===== 셀렉트 채우기 ===== */
 function fillSelects(){
   const regOpts=REGION_KEYS.map(k=>`<option value="${k}">${REGIONS[k].name}</option>`).join('');
   const typOpts=TYPES.map(t=>`<option>${t}</option>`).join('');
@@ -539,42 +691,32 @@ function fillSelects(){
 
 /* ===== 렌더 ===== */
 function renderAll(){
-  refreshChecks();
-  renderMarkers();
-  renderPenetration();
-  renderCounts();
-  renderGoal();
-  renderInstructors();
-  saveState();
+  refreshChecks();renderMarkers();renderPenetration();renderCounts();renderGoal();renderInstructors();
 }
-
-function visible(io){
-  return filters.stage.has(io.stage) && filters.region.has(io.region) && filters.type.has(io.type);
-}
-
+function visible(io){return filters.stage.has(io.stage)&&filters.region.has(io.region)&&filters.type.has(io.type);}
 function renderMarkers(){
   markerLayer.clearLayers();
   institutions.forEach(io=>{
-    if(!visible(io)) return;
+    if(!visible(io))return;
     const st=STAGES.find(s=>s.id===io.stage);
     const meta=TYPE_META[io.type]||{label:'?',shape:'circle'};
-    const bg = io.perf ? 'var(--s-perf)' : st.color;
-    const big = io.perf || io.stage==='deal';
-    const sz = big?30:24;
+    const bg=io.perf?'var(--s-perf)':st.color;
+    const big=io.perf||io.stage==='deal';
+    const sz=big?30:24;
     const html=`<div class="mk mk-${meta.shape} ${big?'big':''}" style="background:${bg};width:${sz}px;height:${sz}px">
       <span style="font-size:${big?12:11}px">${meta.label}</span></div>`;
     const icon=L.divIcon({html,className:'',iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
     const m=L.marker([io.lat,io.lng],{icon,draggable:true}).addTo(markerLayer);
-    m.on('dragend',e=>{const p=e.target.getLatLng();io.lat=p.lat;io.lng=p.lng;saveState()});
-    m.bindPopup(()=>popupHTML(io),{maxWidth:280});
+    m.on('dragend',e=>{const p=e.target.getLatLng();io.lat=p.lat;io.lng=p.lng;debounceSave();});
+    m.bindPopup(()=>popupHTML(io),{maxWidth:290});
   });
 }
-
 function popupHTML(io){
-  const wrap=document.createElement('div'); wrap.className='iocard';
-  wrap.innerHTML=`<b>${io.name}</b><div class="typ">${REGIONS[io.region].name} · ${io.type}</div>
-    <div class="stages">${STAGES.map(s=>`<button data-s="${s.id}"
-      class="${io.stage===s.id?'active':''}" style="${io.stage===s.id?`background:${s.color}`:''}">${s.name}</button>`).join('')}</div>
+  const wrap=document.createElement('div');wrap.className='iocard';
+  const isSentToChida=io.id&&io.id.startsWith('rm_')||io._from==='rhythm_map';
+  wrap.innerHTML=`<b>${io.name}</b><div class="typ">${REGIONS[io.region]?.name||io.region} · ${io.type}</div>
+    <div class="stages">${STAGES.map(s=>`<button data-s="${s.id}" class="${io.stage===s.id?'active':''}"
+      style="${io.stage===s.id?`background:${s.color}`:''}">${s.name}</button>`).join('')}</div>
     <label class="perf"><input type="checkbox" ${io.perf?'checked':''} data-perf> 공연·특강 프로그램 공급</label>
     <div class="fld" style="margin-top:10px">기관 유형
       <select class="assignsel" data-type>${TYPES.map(t=>`<option ${io.type===t?'selected':''}>${t}</option>`).join('')}</select>
@@ -582,53 +724,61 @@ function popupHTML(io){
     <div class="fld" style="margin-top:8px">담당 강사
       <select class="assignsel" data-ins>${instructors.map(n=>`<option ${io.instructor===n?'selected':''}>${n}</option>`).join('')}</select>
     </div>
-    <textarea data-note placeholder="메모: 담당자, 통화 내역, 다음 액션…">${io.note||''}</textarea>`;
-  wrap.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{io.stage=b.dataset.s;renderAll();map.closePopup()});
-  wrap.querySelector('[data-perf]').onchange=e=>{io.perf=e.target.checked;renderAll()};
-  wrap.querySelector('[data-type]').onchange=e=>{io.type=e.target.value;renderAll();map.closePopup()};
-  wrap.querySelector('[data-ins]').onchange=e=>{io.instructor=e.target.value;renderAll()};
-  wrap.querySelector('[data-note]').oninput=e=>{io.note=e.target.value;saveState()};
+    <textarea data-note placeholder="메모: 담당자, 통화 내역…">${io.note||''}</textarea>
+    ${io.stage==='deal'?`<button class="send-chida" data-chida>🥁 치다 수업관리에 등록</button>`:''}`;
+  wrap.querySelectorAll('[data-s]').forEach(b=>b.onclick=()=>{io.stage=b.dataset.s;renderAll();map.closePopup();debounceSave();});
+  wrap.querySelector('[data-perf]').onchange=e=>{io.perf=e.target.checked;renderAll();debounceSave();};
+  wrap.querySelector('[data-type]').onchange=e=>{io.type=e.target.value;renderAll();map.closePopup();debounceSave();};
+  wrap.querySelector('[data-ins]').onchange=e=>{io.instructor=e.target.value;debounceSave();};
+  wrap.querySelector('[data-note]').oninput=e=>{io.note=e.target.value;debounceSave();};
+  if(io.stage==='deal'){
+    wrap.querySelector('[data-chida]').onclick=async function(){
+      if(!curUser){alert('로그인이 필요해요.');return;}
+      this.textContent='등록 중…';this.disabled=true;
+      const {db,doc,setDoc,serverTimestamp}=window._fb;
+      const uid=curUser.uid;
+      const chidaId='rm_'+io.id;
+      const chidaType=TYPE_TO_CHIDA[io.type]??5;
+      try{
+        await setDoc(doc(db,`users/${uid}/insts`,chidaId),{
+          id:chidaId,name:io.name,type:chidaType,
+          day:DAY_MAP[io.region]||'월',time:'',
+          _from:'rhythm_map',_ts:serverTimestamp()
+        },{merge:true});
+        this.textContent='✓ 치다에 등록됐어요!';this.classList.add('sent');
+      }catch(e){this.textContent='오류: '+e.message;this.disabled=false;}
+    };
+  }
   return wrap;
 }
-
 function renderPenetration(){
-  const inScope = institutions.filter(io=>filters.region.has(io.region)&&filters.type.has(io.type));
+  const inScope=institutions.filter(io=>filters.region.has(io.region)&&filters.type.has(io.type));
   const total=inScope.length||1;
   const counts={};STAGES.forEach(s=>counts[s.id]=0);let perf=0;
-  inScope.forEach(io=>{counts[io.stage]++; if(io.perf)perf++});
-  const won = counts.deal;
-  const pct = Math.round(won/total*100);
+  inScope.forEach(io=>{counts[io.stage]++;if(io.perf)perf++;});
+  const won=counts.deal;const pct=Math.round(won/total*100);
   document.getElementById('penBig').innerHTML=`${pct}<span>%</span>`;
   document.getElementById('penSub').textContent=`계약 ${won} / 범위 내 ${inScope.length}개 기관 · 공급 ${perf}`;
   const bar=document.getElementById('penBar');bar.innerHTML='';
-  STAGES.forEach(s=>{
-    const w=counts[s.id]/total*100;
-    if(w>0){const i=document.createElement('i');i.style.width=w+'%';i.style.background=s.color;bar.appendChild(i)}
-  });
+  STAGES.forEach(s=>{const w=counts[s.id]/total*100;
+    if(w>0){const i=document.createElement('i');i.style.width=w+'%';i.style.background=s.color;bar.appendChild(i);}});
   document.getElementById('penLegend').innerHTML=STAGES.map(s=>
     `<span><b style="background:${s.color}"></b>${s.name} ${counts[s.id]}</span>`).join('')+
     `<span><b style="background:var(--s-perf)"></b>공급 ${perf}</span>`;
 }
-
 function renderCounts(){
-  STAGES.forEach(s=>{const e=document.getElementById('stagecnt-'+s.id);
-    if(e)e.textContent=institutions.filter(io=>io.stage===s.id).length});
-  REGION_KEYS.forEach(k=>{const e=document.getElementById('regcnt-'+k);
-    if(e)e.textContent=institutions.filter(io=>io.region===k).length});
-  TYPES.forEach(t=>{const e=document.getElementById('typecnt-'+t);
-    if(e)e.textContent=institutions.filter(io=>io.type===t).length});
+  STAGES.forEach(s=>{const e=document.getElementById('stagecnt-'+s.id);if(e)e.textContent=institutions.filter(io=>io.stage===s.id).length;});
+  REGION_KEYS.forEach(k=>{const e=document.getElementById('regcnt-'+k);if(e)e.textContent=institutions.filter(io=>io.region===k).length;});
+  TYPES.forEach(t=>{const e=document.getElementById('typecnt-'+t);if(e)e.textContent=institutions.filter(io=>io.type===t).length;});
 }
-
 function renderGoal(){
   const won=institutions.filter(io=>io.stage==='deal').length;
   const goal=+document.getElementById('goalNum').value||0;
   const e=document.getElementById('goalProg');
-  if(goal>0){const p=Math.round(won/goal*100);
-    e.textContent=`${won} / ${goal}  (${p}%)`;
-    e.style.color = p>=100?'var(--s-deal)':p>=50?'var(--s-nego)':'var(--s-contact)';
-  } else e.textContent=`현재 계약 ${won}`;
+  if(goal>0){const p=Math.round(won/goal*100);e.textContent=`${won} / ${goal} (${p}%)`;
+    e.style.color=p>=100?'var(--s-deal)':p>=50?'var(--s-nego)':'var(--s-contact)';}
+  else e.textContent=`현재 계약 ${won}`;
 }
-
 function renderInstructors(){
   const c=document.getElementById('instructorList');c.innerHTML='';
   instructors.forEach(n=>{
@@ -641,176 +791,130 @@ function renderInstructors(){
   const add=document.createElement('div');add.className='type-row';
   add.style.cssText='cursor:pointer;color:var(--accent);font-weight:600;font-size:12px';
   add.innerHTML=`<div class="rowlabel">＋ 강사 추가</div>`;
-  add.onclick=()=>{const n=prompt('강사 이름');if(n&&!instructors.includes(n)){instructors.push(n);renderAll()}};
+  add.onclick=()=>{const n=prompt('강사 이름');if(n&&!instructors.includes(n)){instructors.push(n);renderAll();debounceSave();}};
   c.appendChild(add);
 }
 
-/* ===== 주소 → 좌표 (OpenStreetMap Nominatim, 키 불필요) ===== */
+/* ===== 주소 → 좌표 ===== */
 async function geocode(query){
-  if(!query) return null;
-  const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&q='
-    +encodeURIComponent(query);
-  try{
-    const res=await fetch(url,{headers:{'Accept-Language':'ko'}});
-    if(!res.ok) return null;
+  if(!query)return null;
+  const url='https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=kr&q='+encodeURIComponent(query);
+  try{const res=await fetch(url,{headers:{'Accept-Language':'ko'}});
+    if(!res.ok)return null;
     const data=await res.json();
-    if(data&&data.length){return {lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)}}
-  }catch(e){console.warn('geocode 실패',e)}
+    if(data&&data.length)return{lat:parseFloat(data[0].lat),lng:parseFloat(data[0].lon)};}
+  catch(e){console.warn('geocode 실패',e);}
   return null;
 }
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-
-// 단건 폼: 주소로 위치 찾기
 async function geocodeForm(){
   const addr=document.getElementById('f_addr').value.trim();
   const region=document.getElementById('f_region').value;
   const t=document.getElementById('addToast');
-  if(!addr){t.style.color='var(--s-nego)';t.textContent='먼저 주소를 입력하세요.';return}
-  if(!navigator.onLine){t.style.color='var(--s-nego)';
-    t.textContent='오프라인 상태입니다. 주소 검색은 인터넷 연결이 필요해요. 좌표 없이 추가하고 나중에 마커를 끌어 맞추세요.';return}
+  if(!addr){t.style.color='var(--s-nego)';t.textContent='먼저 주소를 입력하세요.';return;}
+  if(!navigator.onLine){t.style.color='var(--s-nego)';t.textContent='오프라인 상태입니다.';return;}
   const btn=document.querySelector('#addModal .findbtn');
   btn.disabled=true;btn.textContent='찾는 중…';t.style.color='#8a7d66';t.textContent='주소를 찾고 있습니다…';
-  // 지역명을 앞에 붙여 정확도 보강
   const hint=REGIONS[region].name.replace(/특별자치도|특별시|광역시|도$/,'');
-  const found=await geocode(addr.includes(hint)?addr:hint+' '+addr) || await geocode(addr);
+  const found=await geocode(addr.includes(hint)?addr:hint+' '+addr)||await geocode(addr);
   btn.disabled=false;btn.textContent='위치 찾기';
   if(found){
     document.getElementById('f_lat').value=found.lat.toFixed(6);
     document.getElementById('f_lng').value=found.lng.toFixed(6);
-    t.style.color='var(--s-deal)';t.textContent='위치를 찾았습니다. 추가 후 지도에서 확인하세요.';
-  }else{
-    t.style.color='var(--s-nego)';t.textContent='주소를 못 찾았습니다. 좌표 없이 추가하고 마커를 끌어 맞추세요.';
-  }
+    t.style.color='var(--s-deal)';t.textContent='위치를 찾았습니다.';
+  }else{t.style.color='var(--s-nego)';t.textContent='주소를 못 찾았습니다. 마커를 끌어 맞추세요.';}
 }
 
-/* ===== 기관 추가 (단건) ===== */
-function addManual(){openModal('addModal')}
+/* ===== 기관 추가 ===== */
+function addManual(){openModal('addModal');}
 function makeInst(name,region,type,lat,lng,addr){
-  if(isNaN(lat)||isNaN(lng)||lat==null){
-    lat=REGIONS[region].lat+(Math.random()-.5)*.28;
-    lng=REGIONS[region].lng+(Math.random()-.5)*.28;
-  }
-  return {id:Date.now()+''+Math.random().toString(36).slice(2),name,region,type,
-    lat,lng,addr:addr||'',stage:'lead',perf:false,note:'',instructor:'나'};
+  if(isNaN(lat)||isNaN(lng)||lat==null){lat=REGIONS[region].lat+(Math.random()-.5)*.28;lng=REGIONS[region].lng+(Math.random()-.5)*.28;}
+  return{id:Date.now()+''+Math.random().toString(36).slice(2),name,region,type,lat,lng,addr:addr||'',stage:'lead',perf:false,note:'',instructor:'나'};
 }
 function commitAdd(keepOpen){
   const name=document.getElementById('f_name').value.trim();
-  if(!name){alert('기관명을 입력하세요');return}
+  if(!name){alert('기관명을 입력하세요');return;}
   const region=document.getElementById('f_region').value;
   const type=document.getElementById('f_type').value;
   const lat=parseFloat(document.getElementById('f_lat').value);
   const lng=parseFloat(document.getElementById('f_lng').value);
   institutions.push(makeInst(name,region,type,lat,lng,document.getElementById('f_addr').value));
   ['f_name','f_lat','f_lng','f_addr'].forEach(id=>document.getElementById(id).value='');
-  renderAll();
-  if(keepOpen){
-    const t=document.getElementById('addToast');t.textContent=`"${name}" 추가됨 · 계속 입력하세요`;
-    setTimeout(()=>t.textContent='',2200);
-    document.getElementById('f_name').focus();
-  } else { closeModal('addModal'); fitAll(); }
+  renderAll();debounceSave();
+  if(keepOpen){const t=document.getElementById('addToast');t.textContent=`"${name}" 추가됨`;setTimeout(()=>t.textContent='',2200);document.getElementById('f_name').focus();}
+  else{closeModal('addModal');fitAll();}
 }
-
-/* ===== 기관 추가 (일괄) ===== */
-function openBulk(){document.getElementById('b_list').value='';document.getElementById('bulkToast').textContent='';openModal('bulkModal')}
+function openBulk(){document.getElementById('b_list').value='';document.getElementById('bulkToast').textContent='';openModal('bulkModal');}
 async function commitBulk(){
   const region=document.getElementById('b_region').value;
   const type=document.getElementById('b_type').value;
   const lines=document.getElementById('b_list').value.split('\n');
   const t=document.getElementById('bulkToast');
-
-  // 1단계: 줄을 파싱해 항목 목록 만들기
   const items=[];
   lines.forEach(raw=>{
     const line=raw.trim();
-    if(!line || line.startsWith('·') || line.startsWith('예)')) return;  // 빈 줄·안내문 건너뜀
-    if(line.includes('|')){                       // 이름 | 주소
-      const [name,addr]=line.split('|').map(s=>s.trim());
-      if(name) items.push({name,addr,lat:NaN,lng:NaN});
-    }else if(line.includes(',')){                 // 이름, 위도, 경도
-      const p=line.split(',').map(s=>s.trim());
-      if(p[0]) items.push({name:p[0],addr:'',lat:parseFloat(p[1]),lng:parseFloat(p[2])});
-    }else{
-      items.push({name:line,addr:'',lat:NaN,lng:NaN});
-    }
+    if(!line||line.startsWith('·')||line.startsWith('예)'))return;
+    if(line.includes('|')){const[name,addr]=line.split('|').map(s=>s.trim());if(name)items.push({name,addr,lat:NaN,lng:NaN});}
+    else if(line.includes(',')){const p=line.split(',').map(s=>s.trim());if(p[0])items.push({name:p[0],addr:'',lat:parseFloat(p[1]),lng:parseFloat(p[2])});}
+    else items.push({name:line,addr:'',lat:NaN,lng:NaN});
   });
-  if(items.length===0){t.style.color='var(--s-nego)';t.textContent='추가할 기관명이 없습니다.';return}
-
-  // 2단계: 주소가 있는 항목은 순차 지오코딩 (Nominatim 예의상 요청 간 1.1초 간격)
+  if(!items.length){t.style.color='var(--s-nego)';t.textContent='추가할 기관명이 없습니다.';return;}
   const btn=document.querySelector('#bulkModal .solid.primary');
-  const toGeo=items.filter(i=>i.addr && (isNaN(i.lat)||isNaN(i.lng)));
+  const toGeo=items.filter(i=>i.addr&&(isNaN(i.lat)||isNaN(i.lng)));
   const hint=REGIONS[region].name.replace(/특별자치도|특별시|광역시|도$/,'');
   let geoOk=0;
-  if(toGeo.length && navigator.onLine){
+  if(toGeo.length&&navigator.onLine){
     btn.disabled=true;
     for(let n=0;n<toGeo.length;n++){
-      const it=toGeo[n];
-      t.style.color='#8a7d66';t.textContent=`주소 찾는 중… (${n+1}/${toGeo.length})`;
+      const it=toGeo[n];t.style.color='#8a7d66';t.textContent=`주소 찾는 중… (${n+1}/${toGeo.length})`;
       const f=await geocode(it.addr.includes(hint)?it.addr:hint+' '+it.addr);
-      if(f){it.lat=f.lat;it.lng=f.lng;geoOk++}
-      if(n<toGeo.length-1) await sleep(1100);
+      if(f){it.lat=f.lat;it.lng=f.lng;geoOk++;}
+      if(n<toGeo.length-1)await sleep(1100);
     }
     btn.disabled=false;
   }
-  const offlineSkipped = toGeo.length && !navigator.onLine;
-
-  // 3단계: 등록
   items.forEach(it=>institutions.push(makeInst(it.name,region,type,it.lat,it.lng,it.addr)));
-  renderAll();fitAll();
-  t.style.color='var(--s-deal)';
-  if(offlineSkipped){
-    t.style.color='var(--s-contact)';
-    t.textContent=`${items.length}개 추가 완료 · 오프라인이라 주소 검색은 건너뜀(지역 중심 배치). 온라인일 때 마커를 끌어 맞추세요.`;
-  }else{
-    t.textContent=`${items.length}개 추가 완료${toGeo.length?` · 주소 ${geoOk}/${toGeo.length}곳 위치 확인`:''}`;
-  }
+  renderAll();fitAll();debounceSave();
+  t.style.color='var(--s-deal)';t.textContent=`${items.length}개 추가 완료${toGeo.length?` · 주소 ${geoOk}/${toGeo.length}곳 위치 확인`:''}`;
   document.getElementById('b_list').value='';
 }
 
-/* ===== 기관 목록·관리 ===== */
-function openList(){document.getElementById('l_search').value='';renderList();openModal('listModal')}
+/* ===== 기관 목록 ===== */
+function openList(){document.getElementById('l_search').value='';renderList();openModal('listModal');}
 function renderList(){
   const q=(document.getElementById('l_search').value||'').trim().toLowerCase();
   const wrap=document.getElementById('listWrap');
-  const rows=institutions.filter(io=>{
-    if(!q) return true;
-    return (io.name+REGIONS[io.region].name+io.type).toLowerCase().includes(q);
-  }).sort((a,b)=>a.region.localeCompare(b.region)||a.type.localeCompare(b.type)||a.name.localeCompare(b.name));
-  if(rows.length===0){wrap.innerHTML=`<div class="listempty">표시할 기관이 없습니다. ‘＋ 기관 추가’나 ‘한번에 입력’으로 등록하세요.</div>`;return}
+  const rows=institutions.filter(io=>!q||(io.name+REGIONS[io.region]?.name+io.type).toLowerCase().includes(q))
+    .sort((a,b)=>a.region.localeCompare(b.region)||a.type.localeCompare(b.type)||a.name.localeCompare(b.name));
+  if(!rows.length){wrap.innerHTML=`<div class="listempty">표시할 기관이 없습니다.</div>`;return;}
   wrap.innerHTML='';
   rows.forEach(io=>{
     const st=STAGES.find(s=>s.id===io.stage);
     const meta=TYPE_META[io.type]||{label:'?',shape:'circle'};
     const shapeCls=meta.shape==='square'?'sq':meta.shape==='diamond'?'dm':'';
     const r=document.createElement('div');r.className='litem';
-    r.innerHTML=`<span class="badge ${shapeCls}" style="background:${io.perf?'var(--s-perf)':st.color}">
-        <span>${meta.label}</span></span>
+    r.innerHTML=`<span class="badge ${shapeCls}" style="background:${io.perf?'var(--s-perf)':st.color}"><span>${meta.label}</span></span>
       <span class="nm">${io.name}</span>
       <select class="ltype" data-type>${TYPES.map(t=>`<option ${io.type===t?'selected':''}>${t}</option>`).join('')}</select>
-      <span class="meta">${REGIONS[io.region].name.slice(0,2)} · ${st.name}${io.perf?' · 공급':''}</span>
+      <span class="meta">${REGIONS[io.region]?.name.slice(0,2)||io.region} · ${st.name}${io.perf?' · 공급':''}</span>
       <span class="act">
         <button title="지도에서 보기" data-go>🔍</button>
         <button title="삭제" data-del>🗑</button>
       </span>`;
-    r.querySelector('[data-type]').onchange=e=>{io.type=e.target.value;renderAll();renderList();};
+    r.querySelector('[data-type]').onchange=e=>{io.type=e.target.value;renderAll();renderList();debounceSave();};
     r.querySelector('[data-go]').onclick=()=>{closeModal('listModal');map.setView([io.lat,io.lng],13);};
-    r.querySelector('[data-del]').onclick=()=>{
-      if(confirm(`"${io.name}"을(를) 삭제할까요?`)){
-        institutions=institutions.filter(x=>x.id!==io.id);renderAll();renderList();
-      }
-    };
+    r.querySelector('[data-del]').onclick=()=>{if(confirm(`"${io.name}"을(를) 삭제할까요?`)){institutions=institutions.filter(x=>x.id!==io.id);renderAll();renderList();debounceSave();}};
     wrap.appendChild(r);
   });
 }
 
-/* ===== 유형 종류 관리 ===== */
-function autoLabel(name){return (name||'?').trim().charAt(0)||'?';}
-function openTypes(){renderTypeManage();document.getElementById('typeToast').textContent='';
-  document.getElementById('newType').value='';openModal('typeModal');}
+/* ===== 유형 관리 ===== */
+function autoLabel(name){return(name||'?').trim().charAt(0)||'?';}
+function openTypes(){renderTypeManage();document.getElementById('typeToast').textContent='';document.getElementById('newType').value='';openModal('typeModal');}
 function renderTypeManage(){
   const wrap=document.getElementById('typeManageWrap');wrap.innerHTML='';
   Object.keys(TYPE_META).forEach(name=>{
-    const m=TYPE_META[name];
-    const cnt=institutions.filter(io=>io.type===name).length;
+    const m=TYPE_META[name];const cnt=institutions.filter(io=>io.type===name).length;
     const shapeCls=m.shape==='square'?'sq':m.shape==='diamond'?'dm':'';
     const r=document.createElement('div');r.className='tmrow';
     r.innerHTML=`<span class="badge ${shapeCls}"><span>${m.label}</span></span>
@@ -827,56 +931,43 @@ function addType(){
   const name=document.getElementById('newType').value.trim();
   const shape=document.getElementById('newTypeShape').value;
   const t=document.getElementById('typeToast');
-  if(!name){t.style.color='var(--s-nego)';t.textContent='유형 이름을 입력하세요.';return}
-  if(TYPE_META[name]){t.style.color='var(--s-nego)';t.textContent='이미 있는 유형입니다.';return}
-  TYPE_META[name]={label:autoLabel(name),shape};
-  refreshTypes();filters.type.add(name);
-  document.getElementById('newType').value='';
-  rebuildTypeUI();renderTypeManage();
-  t.style.color='var(--s-deal)';t.textContent=`"${name}" 유형을 추가했습니다.`;
+  if(!name){t.style.color='var(--s-nego)';t.textContent='유형 이름을 입력하세요.';return;}
+  if(TYPE_META[name]){t.style.color='var(--s-nego)';t.textContent='이미 있는 유형입니다.';return;}
+  TYPE_META[name]={label:autoLabel(name),shape};refreshTypes();filters.type.add(name);
+  document.getElementById('newType').value='';rebuildTypeUI();renderTypeManage();
+  t.style.color='var(--s-deal)';t.textContent=`"${name}" 유형을 추가했습니다.`;debounceSave();
 }
 function renameType(oldName,newName){
-  if(!newName||newName===oldName){renderTypeManage();return}
+  if(!newName||newName===oldName){renderTypeManage();return;}
   const t=document.getElementById('typeToast');
-  if(TYPE_META[newName]){t.style.color='var(--s-nego)';t.textContent='이미 있는 이름입니다.';renderTypeManage();return}
-  // 순서를 보존하며 키 이름 변경
+  if(TYPE_META[newName]){t.style.color='var(--s-nego)';t.textContent='이미 있는 이름입니다.';renderTypeManage();return;}
   const rebuilt={};
-  Object.keys(TYPE_META).forEach(k=>{
-    if(k===oldName){rebuilt[newName]={label:autoLabel(newName),shape:TYPE_META[oldName].shape};}
-    else rebuilt[k]=TYPE_META[k];
-  });
+  Object.keys(TYPE_META).forEach(k=>{rebuilt[k===oldName?newName:k]=(k===oldName?{label:autoLabel(newName),shape:TYPE_META[oldName].shape}:TYPE_META[k]);});
   TYPE_META=rebuilt;refreshTypes();
   if(filters.type.has(oldName)){filters.type.delete(oldName);filters.type.add(newName);}
   institutions.forEach(io=>{if(io.type===oldName)io.type=newName;});
-  rebuildTypeUI();renderTypeManage();
-  t.style.color='var(--s-deal)';t.textContent=`"${oldName}" → "${newName}"으로 바꿨습니다.`;
+  rebuildTypeUI();renderTypeManage();t.style.color='var(--s-deal)';t.textContent=`"${oldName}" → "${newName}"으로 바꿨습니다.`;debounceSave();
 }
 function deleteType(name,cnt){
-  if(Object.keys(TYPE_META).length<=1){alert('유형은 최소 하나는 있어야 합니다.');return}
-  const msg=cnt>0
-    ? `"${name}" 유형에 기관 ${cnt}곳이 있습니다.\n삭제하면 이 기관들을 다른 유형으로 옮겨야 합니다.\n계속할까요?`
-    : `"${name}" 유형을 삭제할까요?`;
-  if(!confirm(msg))return;
+  if(Object.keys(TYPE_META).length<=1){alert('유형은 최소 하나는 있어야 합니다.');return;}
+  if(!confirm(cnt>0?`"${name}" 유형에 기관 ${cnt}곳이 있습니다. 삭제할까요?`:`"${name}" 유형을 삭제할까요?`))return;
   if(cnt>0){
     const others=Object.keys(TYPE_META).filter(t=>t!==name);
-    const dest=prompt(`기관 ${cnt}곳을 옮길 유형을 입력하세요:\n(${others.join(', ')})`,others[0]);
-    if(!dest||!TYPE_META[dest]){alert('옮길 유형이 올바르지 않아 삭제를 취소합니다.');return}
+    const dest=prompt(`기관 ${cnt}곳을 옮길 유형:\n(${others.join(', ')})`,others[0]);
+    if(!dest||!TYPE_META[dest]){alert('취소합니다.');return;}
     institutions.forEach(io=>{if(io.type===name)io.type=dest;});
   }
   delete TYPE_META[name];refreshTypes();filters.type.delete(name);
-  rebuildTypeUI();renderTypeManage();
-  document.getElementById('typeToast').style.color='var(--s-deal)';
-  document.getElementById('typeToast').textContent=`"${name}" 유형을 삭제했습니다.`;
+  rebuildTypeUI();renderTypeManage();debounceSave();
 }
-// 유형 변경 후 의존 UI 전체 갱신
-function rebuildTypeUI(){
-  buildTypeFilters();
-  fillSelects();
-  renderAll();
-}
+function rebuildTypeUI(){buildTypeFilters();fillSelects();renderAll();}
+
+/* ===== 내보내기/가져오기 ===== */
+function openSaveModal(){openModal('saveModal');}
 function exportData(){
-  const data={institutions,instructors,typeMeta:TYPE_META,goal:{text:document.getElementById('goalText').value,
-    num:document.getElementById('goalNum').value},savedAt:new Date().toISOString()};
+  const data={institutions,instructors,typeMeta:TYPE_META,
+    goal:{text:document.getElementById('goalText').value,num:document.getElementById('goalNum').value},
+    savedAt:new Date().toISOString()};
   const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
   const a=document.createElement('a');a.href=URL.createObjectURL(blob);
   a.download=`리듬맵_${new Date().toISOString().slice(0,10)}.json`;a.click();
@@ -887,57 +978,33 @@ function importData(e){
   r.onload=()=>{try{
     const d=JSON.parse(r.result);
     institutions=d.institutions||[];instructors=d.instructors||['나'];
-    if(d.typeMeta && Object.keys(d.typeMeta).length){
-      TYPE_META=d.typeMeta;refreshTypes();
-      filters.type=new Set(TYPES);
-      buildTypeFilters();fillSelects();
-    }
-    if(d.goal){document.getElementById('goalText').value=d.goal.text||'';
-      document.getElementById('goalNum').value=d.goal.num||40}
-    renderAll();fitAll();
-  }catch{alert('파일을 읽을 수 없습니다.')}};
+    if(d.typeMeta&&Object.keys(d.typeMeta).length){TYPE_META=d.typeMeta;refreshTypes();filters.type=new Set(TYPES);buildTypeFilters();fillSelects();}
+    if(d.goal){document.getElementById('goalText').value=d.goal.text||'';document.getElementById('goalNum').value=d.goal.num||40;}
+    renderAll();fitAll();debounceSave();closeModal('saveModal');
+  }catch{alert('파일을 읽을 수 없습니다.');}};
   r.readAsText(f);e.target.value='';
-}
-let mem={};
-function saveState(){
-  mem={institutions,instructors,typeMeta:TYPE_META,goalText:document.getElementById('goalText').value,
-    goalNum:document.getElementById('goalNum').value};
-}
-function loadState(){
-  if(mem.institutions){institutions=mem.institutions;instructors=mem.instructors;
-    if(mem.typeMeta){TYPE_META=mem.typeMeta;refreshTypes();}
-    document.getElementById('goalText').value=mem.goalText||'';
-    document.getElementById('goalNum').value=mem.goalNum||40}
 }
 
 function fitAll(){
   const vis=institutions.filter(visible);
-  if(vis.length){map.fitBounds(L.latLngBounds(vis.map(io=>[io.lat,io.lng])),{padding:[50,50],maxZoom:11})}
+  if(vis.length)map.fitBounds(L.latLngBounds(vis.map(io=>[io.lat,io.lng])),{padding:[50,50],maxZoom:11});
 }
 
 /* ===== 모달 ===== */
-function openModal(id){document.getElementById(id).classList.add('on')}
-function closeModal(id){document.getElementById(id).classList.remove('on')}
-document.querySelectorAll('.modal').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('on')});
+function openModal(id){document.getElementById(id).classList.add('on');}
+function closeModal(id){document.getElementById(id).classList.remove('on');}
+document.querySelectorAll('.modal').forEach(m=>m.onclick=e=>{if(e.target===m)m.classList.remove('on');});
 
-/* ===== 수집 가이드 ===== */
+/* ===== 가이드 ===== */
 function openGuide(){
   document.getElementById('guideBody').innerHTML=`
-   <p style="margin-bottom:16px">3개 지역·5개 유형의 기관 목록을 <b>공공데이터로 한 번에 채우는</b> 방법입니다. 모두 무료·영리이용 허용입니다.</p>
+   <p style="margin-bottom:16px">3개 지역·5개 유형의 기관 목록을 <b>공공데이터로 한 번에 채우는</b> 방법입니다.</p>
    <h4>초·중·고등학교</h4>
-   <div class="step"><div class="n">1</div><div><b>전국초중등학교위치표준데이터</b> 내려받기 — 학교명·유형·주소·<b>위도·경도</b>까지 포함되어 바로 지도에 찍힙니다.<br>
+   <div class="step"><div class="n">1</div><div><b>전국초중등학교위치표준데이터</b><br>
      <a href="https://www.data.go.kr/data/15021148/standard.do" target="_blank">data.go.kr/data/15021148</a></div></div>
-   <div class="step"><div class="n">2</div><div>엑셀에서 <code>시도교육청명</code> 열로 충남·전북·전남만 필터링 → CSV/JSON으로 저장.</div></div>
    <h4>지역아동센터</h4>
-   <div class="step"><div class="n">3</div><div><b>전국지역아동센터표준데이터</b> — 센터명·주소·위도·경도·정원 포함.<br>
-     <a href="https://www.data.go.kr/data/15129438/standard.do" target="_blank">data.go.kr/data/15129438</a></div></div>
-   <h4>특수교육지원센터</h4>
-   <div class="step"><div class="n">4</div><div>각 시·도교육청 특수교육지원센터 목록은 공공데이터포털 검색 또는 <b>나이스 교육정보 개방포털</b>에서 확인합니다. 수가 적어(시·군별 1~2곳) 직접 추가해도 빠릅니다.<br>
-     <a href="https://open.neis.go.kr" target="_blank">open.neis.go.kr</a></div></div>
-   <h4>리듬맵으로 가져오기</h4>
-   <div class="step"><div class="n">5</div><div>받은 표를 아래 형식의 JSON으로 바꿔 <b>‘불러오기’</b>로 올리면 끝입니다. 열 이름만 맞추면 됩니다:</div></div>
-   <p><code>{"institutions":[{"name":"전주○○초","region":"전북","type":"초등학교","lat":35.82,"lng":127.14,"stage":"lead","perf":false,"instructor":"나"}]}</code></p>
-   <p style="margin-top:14px;color:#8a7d66;font-size:12px">엑셀→JSON 변환이 번거로우면, 받은 CSV를 저에게 주세요. 리듬맵이 바로 읽는 파일로 변환해 드립니다.</p>`;
+   <div class="step"><div class="n">2</div><div><b>전국지역아동센터표준데이터</b><br>
+     <a href="https://www.data.go.kr/data/15129438/standard.do" target="_blank">data.go.kr/data/15129438</a></div></div>`;
   openModal('guideModal');
 }
 
@@ -951,19 +1018,16 @@ function seedExample(){
     ['전북특수교육지원센터','전북','특수교육지원센터',35.824,127.147,'deal',true,'나'],
     ['천안불당초','충남','초등학교',36.797,127.103,'lead',false,'나'],
     ['아산온양중','충남','중학교',36.783,127.004,'contact',false,'나'],
-    ['공주한일고','충남','고등학교',36.456,127.117,'lead',false,'나'],
     ['홍성햇살지역아동센터','충남','지역아동센터',36.601,126.661,'nego',false,'나'],
     ['목포유달초','전남','초등학교',34.789,126.392,'lead',false,'나'],
     ['순천이수중','전남','중학교',34.951,127.487,'contact',false,'나'],
-    ['여수충무고','전남','고등학교',34.760,127.662,'lead',false,'나'],
     ['나주별빛지역아동센터','전남','지역아동센터',35.016,126.711,'lead',false,'나'],
   ];
-  institutions=ex.map((r,i)=>({id:'seed'+i,name:r[0],region:r[1],type:r[2],lat:r[3],lng:r[4],
-    addr:'',stage:r[5],perf:r[6],note:'',instructor:r[7]}));
+  institutions=ex.map((r,i)=>({id:'seed'+i,name:r[0],region:r[1],type:r[2],lat:r[3],lng:r[4],addr:'',stage:r[5],perf:r[6],note:'',instructor:r[7]}));
   document.getElementById('goalText').value='전북 거점 굳히고 충남·전남으로 강사 네트워크 확장';
 }
 
-/* ===== PWA: 서비스워커 등록 + 네트워크 상태 ===== */
+/* ===== 네트워크 상태 ===== */
 function updateNetStatus(){
   const el=document.getElementById('netStatus');
   if(navigator.onLine){el.classList.remove('off');el.textContent='온라인';}
@@ -971,15 +1035,15 @@ function updateNetStatus(){
 }
 window.addEventListener('online',updateNetStatus);
 window.addEventListener('offline',updateNetStatus);
+updateNetStatus();
+
+/* ===== Firebase 보안규칙 안내 (콘솔) ===== */
+// Firestore 보안규칙에 rhythm_map 경로 추가 필요:
+// match /rhythm_map/{userId} { allow read, write: if request.auth.uid == userId; }
 
 if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 등록 실패',e));
-  });
+  window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(e=>console.warn('SW 등록 실패',e)));
 }
-
-init();
-updateNetStatus();
 </script>
 </body>
 </html>
