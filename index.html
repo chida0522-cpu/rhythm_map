@@ -333,7 +333,7 @@ document.addEventListener('DOMContentLoaded', () => window._appInit && window._a
     <div class="panel">
       <h3>기관 유형</h3>
       <div id="typeFilters"></div>
-      <button class="manage-link" onclick="openTypes()">유형 종류 관리 →</button>
+      <button class="manage-link" onclick="openTypes()">⚙️ 유형 추가 · 삭제 →</button>
     </div>
     <div class="panel"><h3>강사 배분</h3><div id="instructorList"></div></div>
   </aside>
@@ -411,17 +411,18 @@ document.addEventListener('DOMContentLoaded', () => window._appInit && window._a
   </div>
 </div>
 <div class="modal" id="typeModal">
-  <div class="box"><header><b>기관 유형 종류 관리</b></header>
+  <div class="box"><header><b>⚙️ 기관 유형 관리</b></header>
     <div class="body">
+      <p style="font-size:12.5px;color:#6b6354;margin-bottom:14px">유형 이름을 바꾸거나 삭제하고, 새 유형을 추가할 수 있습니다.</p>
       <div id="typeManageWrap"></div>
-      <div class="addtype">
-        <input id="newType" placeholder="새 유형 이름">
+      <div class="addtype" style="margin-top:16px">
+        <input id="newType" placeholder="새 유형 이름 (예: 노인복지관)">
         <select id="newTypeShape">
           <option value="circle">● 원형</option>
           <option value="square">■ 사각형</option>
           <option value="diamond">◆ 마름모</option>
         </select>
-        <button class="solid" onclick="addType()">추가</button>
+        <button class="solid" onclick="addType()" style="white-space:nowrap">+ 추가</button>
       </div>
       <div id="typeToast" class="toast"></div>
     </div>
@@ -466,12 +467,14 @@ const STAGES=[
   {id:'deal',name:'계약',color:'var(--s-deal)',raw:'#2f7d54'},
 ];
 let TYPE_META={
-  '초등학교':{label:'초',shape:'circle'},
-  '중학교':{label:'중',shape:'circle'},
-  '고등학교':{label:'고',shape:'circle'},
-  '지역아동센터':{label:'센',shape:'square'},
-  '특수교육지원센터':{label:'특',shape:'diamond'},
+  '초등학교':        {label:'초',shape:'circle',  color:'#9aa3ad'},
+  '중학교':          {label:'중',shape:'circle',  color:'#e0a73d'},
+  '고등학교':        {label:'고',shape:'circle',  color:'#d4622a'},
+  '지역아동센터':    {label:'센',shape:'square',  color:'#2f7d54'},
+  '특수교육지원센터':{label:'특',shape:'diamond', color:'#6b4ea8'},
 };
+// 커스텀 유형 색상 팔레트
+const TYPE_COLORS=['#C44E8A','#2A8DC0','#9A7510','#208060','#7B5EA7','#C06828','#1A9068','#B06810'];
 let TYPES=Object.keys(TYPE_META);
 function refreshTypes(){TYPES=Object.keys(TYPE_META);}
 const REGIONS={
@@ -913,16 +916,21 @@ function autoLabel(name){return(name||'?').trim().charAt(0)||'?';}
 function openTypes(){renderTypeManage();document.getElementById('typeToast').textContent='';document.getElementById('newType').value='';openModal('typeModal');}
 function renderTypeManage(){
   const wrap=document.getElementById('typeManageWrap');wrap.innerHTML='';
+  if(!Object.keys(TYPE_META).length){
+    wrap.innerHTML='<p style="font-size:13px;color:#8a7d66;padding:10px 0">유형이 없습니다. 아래에서 추가하세요.</p>';return;
+  }
   Object.keys(TYPE_META).forEach(name=>{
     const m=TYPE_META[name];const cnt=institutions.filter(io=>io.type===name).length;
     const shapeCls=m.shape==='square'?'sq':m.shape==='diamond'?'dm':'';
     const r=document.createElement('div');r.className='tmrow';
-    r.innerHTML=`<span class="badge ${shapeCls}"><span>${m.label}</span></span>
-      <input class="tname" value="${name}">
+    r.innerHTML=`
+      <span class="badge ${shapeCls}" style="background:${m.color||'#8a7d66'}"><span>${m.label}</span></span>
+      <input class="tname" value="${name}" placeholder="유형 이름">
       <span class="tcnt">${cnt}곳</span>
-      <button class="tdel" title="삭제">🗑</button>`;
+      <button class="tdel" title="삭제" style="color:#d4622a;font-size:18px">✕</button>`;
     const input=r.querySelector('.tname');
-    input.onchange=()=>renameType(name,input.value.trim());
+    input.onblur=()=>{if(input.value.trim()!==name)renameType(name,input.value.trim())};
+    input.onkeydown=e=>{if(e.key==='Enter')input.blur();};
     r.querySelector('.tdel').onclick=()=>deleteType(name,cnt);
     wrap.appendChild(r);
   });
@@ -933,9 +941,10 @@ function addType(){
   const t=document.getElementById('typeToast');
   if(!name){t.style.color='var(--s-nego)';t.textContent='유형 이름을 입력하세요.';return;}
   if(TYPE_META[name]){t.style.color='var(--s-nego)';t.textContent='이미 있는 유형입니다.';return;}
-  TYPE_META[name]={label:autoLabel(name),shape};refreshTypes();filters.type.add(name);
+  const color=TYPE_COLORS[Object.keys(TYPE_META).length%TYPE_COLORS.length];
+  TYPE_META[name]={label:autoLabel(name),shape,color};refreshTypes();filters.type.add(name);
   document.getElementById('newType').value='';rebuildTypeUI();renderTypeManage();
-  t.style.color='var(--s-deal)';t.textContent=`"${name}" 유형을 추가했습니다.`;debounceSave();
+  t.style.color='var(--s-deal)';t.textContent=`"${name}" 유형이 추가됐어요!`;debounceSave();
 }
 function renameType(oldName,newName){
   if(!newName||newName===oldName){renderTypeManage();return;}
